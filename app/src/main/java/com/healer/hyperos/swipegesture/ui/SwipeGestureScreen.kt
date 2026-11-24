@@ -392,7 +392,7 @@ private fun GestureTriggerCard(settings: SwipeGestureSettings) {
         )
 
         SliderBlock(
-            title = "触发区底部边界（避开输入法区）",
+            title = "触发区底部边界（屏高占比）",
             valueLabel = "${(settings.triggerBottomRatio * 100f).roundToInt()}%",
             value = settings.triggerBottomRatio,
             valueRange = SwipeGestureSettings.MIN_TRIGGER_BOTTOM_RATIO..

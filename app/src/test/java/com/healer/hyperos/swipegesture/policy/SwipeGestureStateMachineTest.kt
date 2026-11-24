@@ -161,15 +161,6 @@ class SwipeGestureStateMachineTest {
     }
 
     @Test
-    fun imeVisibleHeightClipsBottomTriggerZone() {
-        val sm = SwipeGestureStateMachine()
-        // Screen height 2000, triggerBottomRatio 0.82 -> normally allowed up to y=1640.
-        // With IME visible height 700, effective bottom is clipped to y=1300.
-        assertFalse(sm.onDown(10f, 1400f, 1000, 2000, 48, defaultSettings, imeVisibleHeightPx = 700))
-        assertTrue(sm.onDown(10f, 1200f, 1000, 2000, 48, defaultSettings, imeVisibleHeightPx = 700))
-    }
-
-    @Test
     fun slidingBackBeforePauseCancelsArmWithoutSuppressingBack() {
         val sm = SwipeGestureStateMachine()
         assertTrue(sm.onDown(10f, 1000f, 1000, 2000, 48, defaultSettings))

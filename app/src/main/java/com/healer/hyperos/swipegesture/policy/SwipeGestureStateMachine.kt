@@ -83,23 +83,15 @@ class SwipeGestureStateMachine {
         screenHeight: Int,
         edgeInsetPx: Int,
         settings: SwipeGestureSettings,
-        imeVisibleHeightPx: Int = 0,
     ): Boolean {
         resetInternal()
         if (!settings.enabled || screenWidth <= 0 || screenHeight <= 0 || edgeInsetPx <= 0) {
             return false
         }
 
-        val effectiveBottomPx = if (imeVisibleHeightPx > 0) {
-            minOf(
-                screenHeight * settings.triggerBottomRatio,
-                (screenHeight - imeVisibleHeightPx).toFloat(),
-            )
-        } else {
-            screenHeight * settings.triggerBottomRatio
-        }
         val topPx = screenHeight * settings.triggerTopRatio
-        if (rawY < topPx || rawY > effectiveBottomPx || effectiveBottomPx <= topPx) {
+        val bottomPx = screenHeight * settings.triggerBottomRatio
+        if (rawY < topPx || rawY > bottomPx || bottomPx <= topPx) {
             return false
         }
 

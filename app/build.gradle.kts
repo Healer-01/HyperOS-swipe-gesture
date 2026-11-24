@@ -15,8 +15,8 @@ android {
         applicationId = "com.healer.hyperos.swipegesture"
         minSdk = 33
         targetSdk = 35
-        versionCode = 10001
-        versionName = "1.0.0"
+        versionCode = 10002
+        versionName = "1.0.1"
     }
 
     val signingProps = Properties().apply {

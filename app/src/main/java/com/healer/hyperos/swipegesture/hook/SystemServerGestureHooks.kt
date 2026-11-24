@@ -92,12 +92,6 @@ internal object SystemServerGestureHooks {
     private var wmsGlobalLock: Any? = null
 
     @Volatile
-    private var wmsPolicy: Any? = null
-
-    @Volatile
-    private var imeVisibleHeightField: Field? = null
-
-    @Volatile
     private var gestureHandler: Handler? = null
 
     @Volatile
@@ -194,11 +188,6 @@ internal object SystemServerGestureHooks {
         }
         wmsHandler = runCatching { findField(wms.javaClass, "mH")?.get(wms) as? Handler }.getOrNull()
         wmsGlobalLock = runCatching { findField(wms.javaClass, "mGlobalLock")?.get(wms) }.getOrNull()
-        val policy = runCatching { findField(wms.javaClass, "mPolicy")?.get(wms) }.getOrNull()
-        wmsPolicy = policy
-        if (policy != null && imeVisibleHeightField == null) {
-            imeVisibleHeightField = findField(policy.javaClass, "mInputMethodWindowVisibleHeight")
-        }
         if (backNavControllerRef == null) {
             backNavControllerRef = runCatching {
                 val atm = findField(wms.javaClass, "mAtmService")?.get(wms) ?: return@runCatching null
@@ -438,7 +427,6 @@ internal object SystemServerGestureHooks {
                 RuntimeSettingsHolder.ensureBound(moduleRef)
                 refreshDisplayMetrics(context)
                 val edgeInsetPx = maxOf(MIN_EDGE_INSET_PX, (EDGE_INSET_DP * cachedDensity).roundToInt())
-                val imeHeightPx = readImeVisibleHeightPx()
                 gestureSeq.incrementAndGet()
                 prefetchedResult = null
                 handlePointerDown(
@@ -449,7 +437,6 @@ internal object SystemServerGestureHooks {
                     screenWidth = cachedScreenWidth,
                     screenHeight = cachedScreenHeight,
                     edgeInsetPx = edgeInsetPx,
-                    imeVisibleHeightPx = imeHeightPx,
                 )
             }
 
@@ -524,7 +511,6 @@ internal object SystemServerGestureHooks {
         screenWidth: Int,
         screenHeight: Int,
         edgeInsetPx: Int,
-        imeVisibleHeightPx: Int = 0,
     ) {
         ensureOverlayHostReceiver(context)
         cancelPendingPause(handler)
@@ -542,12 +528,11 @@ internal object SystemServerGestureHooks {
             screenHeight = screenHeight,
             edgeInsetPx = edgeInsetPx,
             settings = settings,
-            imeVisibleHeightPx = imeVisibleHeightPx,
         )
         if (tracking) {
             logTrace {
                 "Edge DOWN tracked rawX=$rawX rawY=$rawY fromLeft=${stateMachine.fromLeft} " +
-                    "screen=${screenWidth}x$screenHeight ime=$imeVisibleHeightPx"
+                    "screen=${screenWidth}x$screenHeight"
             }
         }
     }
@@ -803,12 +788,6 @@ internal object SystemServerGestureHooks {
                 cachedDensity = resDm.density
             }
         }
-    }
-
-    private fun readImeVisibleHeightPx(): Int {
-        val policy = wmsPolicy ?: return 0
-        val field = imeVisibleHeightField ?: return 0
-        return runCatching { field.getInt(policy).coerceAtLeast(0) }.getOrDefault(0)
     }
 
     private fun resolveSystemUiUid(): Int {

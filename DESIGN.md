@@ -41,7 +41,7 @@
 | **切换模式** | 默认「多应用悬浮菜单」（纯最近运行任务列表，按最近使用自上而下排列，默认选中顶部“上一个应用”，下滑切更早应用、上滑回退、首尾边界停止并带触感反馈）；同时保留可选「仅切上一个应用」单切模式。 |
 | **进程隔离架构** | **`system` (`system_server`)** 保持极简（仅输入监控、纯状态机、多层返回屏蔽、任务查询与 `moveTaskToFront`，零 UI / 零图标解码 / 零阻塞 IPC）；**`com.android.systemui`** 托管悬浮菜单渲染（通过 `IBinder.FLAG_ONEWAY` 异步 Binder 通信，常驻不被墓碑冻结、免悬浮窗权限、可复用 HyperOS 原生模糊，并同步拦截 WM Shell 预测返回）。 |
 | **悬浮菜单 UI** | **对侧悬浮胶囊**（左滑出在右侧、右滑出在左侧彻底防拇指遮挡），纯图标毛玻璃质感、平滑入场/缩放动画与选中项高亮环（不额外弹出应用标题胶囊）。 |
-| **场景与边界** | 锁屏 / 下拉控制中心 / 通知栏强制禁用；支持左右边缘独立开关与自定义垂直触发高度区间（自动避开顶部状态栏与底部输入法区）。 |
+| **场景与边界** | 锁屏 / 下拉控制中心 / 通知栏强制禁用；支持左右边缘独立开关与自定义垂直触发高度区间（输入法弹出期间仍按设置高度正常触发，悬浮窗层级高于键盘）。 |
 | **Miuix 设置页** | 模块与作用域状态卡（支持一键向 LSPosed 申请作用域）+ 核心开关与触发参数 + 悬浮菜单外观与实时预览 + 应用黑名单选择器 + 诊断日志与关于页。 |
 
 ---
@@ -92,9 +92,9 @@ app/src/main/java/com/healer/hyperos/swipegesture/
      - 对激活前 7ms 已创建的会话，通过本地 `BackCallbackSuppressionBinder` 代理 `BackNavigationInfo.mOnBackInvokedCallback`，将 `TRANSACTION_onBackInvoked` 拦截并改发 `TRANSACTION_onBackCancelled`，同时在 `WMS.mH` 下通过 `NavigationMonitor.cancelBackNavigating` 清理会话并将 `NavigationFinished` 置为 `false`。
   3. **按键注入兜底**：Hook `InputManagerService.injectInputEventToTarget(InputEvent, int, int, boolean, String[])`，锁存期间吸收 `KeyEvent.KEYCODE_BACK`。
 
-### 检查点 C：锁屏 / 控制中心 / 通知栏 / 输入法防误触（已实机验证）
+### 检查点 C：锁屏 / 控制中心 / 通知栏防误触（已实机验证）
 - `SystemUiOverlayHooks` Hook `com.android.systemui.shade.NotificationShadeWindowControllerImpl.apply(NotificationShadeWindowState)`，合并 `controlCenterExpanded || qsExpanded || shadeOrQsExpanded || bouncerShowing || (keyguardShowing && !keyguardOccluded) || dozing || dreaming`，仅在状态跳变时经由 `SystemServerControlClient`（`FLAG_ONEWAY`）同步给 `system_server`（同时保留 `KeyguardManager.isKeyguardLocked` 与 `StatusBarManagerService.onPanelRevealed/Hidden` 兜底）。
-- 通过 `WindowManagerService.mPolicy`（`BaseMiuiPhoneWindowManager`）实机字段 `mInputMethodWindowVisibleHeight` 动态裁剪底部触发区，输入法弹出时自动屏蔽键盘区域误触。
+- 已移除基于 `mInputMethodWindowVisibleHeight` 的自动底部裁剪限制：用户输入法弹出期间仍可直接按自定义触发高度区间呼出菜单，由下方检查点 D 的 `TYPE_STATUS_BAR_SUB_PANEL` 保证菜单悬浮于键盘之上。
 
 ### 检查点 D：SystemUI 悬浮窗层级与原生毛玻璃（已实机验证）
 - 实机 `dumpsys window windows` 显示 `TYPE_APPLICATION_OVERLAY (2038)` 基准层级为 `111000`，低于 `InputMethod (2011, 131000)`。`SystemUiOverlayHooks` 已升级为 SystemUI 特权层级 `TYPE_STATUS_BAR_SUB_PANEL (2017, 181000)`（失败时降级 `2038`），避免输入法遮挡及非系统 `2038` 透明度限制。

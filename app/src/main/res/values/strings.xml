@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">侧滑快切</string>
+    <string name="module_description">适用于 HyperOS 4 的现代 LSPosed 侧滑悬停多应用切换模块（libxposed API 102）</string>
+</resources>

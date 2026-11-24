@@ -1,0 +1,35 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Opposite-edge capsule silhouette -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.24"
+        android:pathData="M64,26h12a6,6 0,0 1,6 6v44a6,6 0,0 1,-6 6h-12a6,6 0,0 1,-6 -6v-44a6,6 0,0 1,6 -6z" />
+    <path
+        android:fillColor="#E0ECFF"
+        android:pathData="M70,38m-5.5,0a5.5,5.5 0,1 1,11 0a5.5,5.5 0,1 1,-11 0" />
+    <path
+        android:fillColor="#8CB4FF"
+        android:pathData="M70,54m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0" />
+    <path
+        android:fillColor="#8CB4FF"
+        android:fillAlpha="0.65"
+        android:pathData="M70,69m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+    <!-- Edge swipe arc -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M28,54C36,54 44,54 50,54"
+        android:strokeWidth="5"
+        android:strokeColor="#93C5FD"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M43,46L51,54L43,62"
+        android:strokeWidth="5"
+        android:strokeColor="#E0ECFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

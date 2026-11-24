@@ -1,0 +1,5 @@
+-keep class com.healer.hyperos.swipegesture.hook.** { *; }
+-keep class com.healer.hyperos.swipegesture.ipc.** { *; }
+-keep class com.healer.hyperos.swipegesture.policy.** { *; }
+-keep class io.github.libxposed.** { *; }
+-dontwarn io.github.libxposed.**

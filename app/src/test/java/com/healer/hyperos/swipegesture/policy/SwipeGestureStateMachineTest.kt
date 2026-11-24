@@ -159,4 +159,58 @@ class SwipeGestureStateMachineTest {
         )
         assertEquals(SwipeGestureStateMachine.Phase.IDLE, sm.phase)
     }
+
+    @Test
+    fun imeVisibleHeightClipsBottomTriggerZone() {
+        val sm = SwipeGestureStateMachine()
+        // Screen height 2000, triggerBottomRatio 0.82 -> normally allowed up to y=1640.
+        // With IME visible height 700, effective bottom is clipped to y=1300.
+        assertFalse(sm.onDown(10f, 1400f, 1000, 2000, 48, defaultSettings, imeVisibleHeightPx = 700))
+        assertTrue(sm.onDown(10f, 1200f, 1000, 2000, 48, defaultSettings, imeVisibleHeightPx = 700))
+    }
+
+    @Test
+    fun slidingBackBeforePauseCancelsArmWithoutSuppressingBack() {
+        val sm = SwipeGestureStateMachine()
+        assertTrue(sm.onDown(10f, 1000f, 1000, 2000, 48, defaultSettings))
+        assertEquals(
+            SwipeGestureStateMachine.Action.ArmPause(fromLeft = true, anchorY = 1000f),
+            sm.onMove(250f, 1000f, defaultSettings),
+        )
+        assertEquals(
+            SwipeGestureStateMachine.Action.CancelPause,
+            sm.onMove(120f, 1000f, defaultSettings),
+        )
+        assertFalse(sm.isBackSuppressionLatched)
+        assertEquals(
+            SwipeGestureStateMachine.Action.EndGesture(keepBackSuppressionWindow = false),
+            sm.onUpOrCancel(cancelled = false),
+        )
+    }
+
+    @Test
+    fun menuAnchorUsesInitialDownYEvenIfThumbDriftsVerticallyDuringSwipe() {
+        val sm = SwipeGestureStateMachine()
+        assertTrue(sm.onDown(10f, 900f, 1000, 2000, 48, defaultSettings))
+        // Thumb drifts down to y=1260 while swiping inward to arm pause.
+        assertEquals(
+            SwipeGestureStateMachine.Action.ArmPause(fromLeft = true, anchorY = 900f),
+            sm.onMove(240f, 1260f, defaultSettings),
+        )
+        // Menu anchorY MUST remain initial downY (900f), not drifted lastY (1260f).
+        assertEquals(
+            SwipeGestureStateMachine.Action.ActivateSwitcher(fromLeft = true, anchorY = 900f),
+            sm.onPauseElapsed(availableCandidates = 3),
+        )
+        // Vertical selection starts smoothly from drifted finger position (1260f):
+        // small move to 1275f does not jump; moving +110px to 1370f selects index 1.
+        assertEquals(
+            SwipeGestureStateMachine.Action.None,
+            sm.onMove(245f, 1275f, defaultSettings),
+        )
+        assertEquals(
+            SwipeGestureStateMachine.Action.UpdateSelection(selectedIndex = 1, hitBoundary = false),
+            sm.onMove(245f, 1370f, defaultSettings),
+        )
+    }
 }

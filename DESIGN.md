@@ -40,7 +40,7 @@
 | **手势交互** | 保留「侧滑悬停」触发：快速侧滑走系统原生返回（零干扰）；滑过距离并停顿后彻底接管并屏蔽返回；滑回边缘取消（带回滞阈值防抖，且**保持返回屏蔽锁存直到松手后宽限期结束**）。 |
 | **切换模式** | 默认「多应用悬浮菜单」（纯最近运行任务列表，按最近使用自上而下排列，默认选中顶部“上一个应用”，下滑切更早应用、上滑回退、首尾边界停止并带触感反馈）；同时保留可选「仅切上一个应用」单切模式。 |
 | **进程隔离架构** | **`system` (`system_server`)** 保持极简（仅输入监控、纯状态机、多层返回屏蔽、任务查询与 `moveTaskToFront`，零 UI / 零图标解码 / 零阻塞 IPC）；**`com.android.systemui`** 托管悬浮菜单渲染（通过 `IBinder.FLAG_ONEWAY` 异步 Binder 通信，常驻不被墓碑冻结、免悬浮窗权限、可复用 HyperOS 原生模糊，并同步拦截 WM Shell 预测返回）。 |
-| **悬浮菜单 UI** | **对侧悬浮胶囊**（左滑出在右侧、右滑出在左侧彻底防拇指遮挡），HyperOS 毛玻璃质感、平滑入场/缩放动画、选中项高亮与伴随应用名胶囊。 |
+| **悬浮菜单 UI** | **对侧悬浮胶囊**（左滑出在右侧、右滑出在左侧彻底防拇指遮挡），纯图标毛玻璃质感、平滑入场/缩放动画与选中项高亮环（不额外弹出应用标题胶囊）。 |
 | **场景与边界** | 锁屏 / 下拉控制中心 / 通知栏强制禁用；支持左右边缘独立开关与自定义垂直触发高度区间（自动避开顶部状态栏与底部输入法区）。 |
 | **Miuix 设置页** | 模块与作用域状态卡（支持一键向 LSPosed 申请作用域）+ 核心开关与触发参数 + 悬浮菜单外观与实时预览 + 应用黑名单选择器 + 诊断日志与关于页。 |
 
@@ -69,36 +69,36 @@ app/src/main/java/com/healer/hyperos/swipegesture/
 
 ---
 
-## 4. 本地实机逆向对齐清单（小米 17 · HyperOS 4.0.6.0）
+## 4. 实机逆向对齐结论（小米 17 · HyperOS 4.0.6.0.XPCCNXM）
 
-在本地连接 USB 并开启 ADB 后，先运行仓库内置的只读采集脚本（**纯只读，不修改手机任何文件**）：
+已于小米 17（`pudding` / `25113PN0EC`，`OS4.0.6.0.XPCCNXM`，Android 17 / SDK 37）完成纯只读 `dumpsys`、系统产物（`services.jar`、`miui-services.jar`、`framework.jar`、`MiuiSystemUI.apk`、活动态 `com.miui.home` `RELEASE-8.01.02.9259`）及活体侧滑 `logcat` 采证，四项检查点已全部闭环对齐：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\dump_hyperos4_readonly.ps1
-```
+### 检查点 A：输入通道与抢占层级（已实机验证）
+- 实机 `dumpsys input` 留存了原模块 `PointerEventDispatcher0` 阻塞 `system_server` `android.ui` 线程导致 5000ms ANR 的现场记录，且 `PointerEventDispatcherOverlay0` 带有 `DO_NOT_PILFER` 标志。
+- 实际可用通道 Z-order：
+  - `[Gesture Monitor] miui-gesture`（`system_server` 独立实时线程 `miui-gesture-0`，`SPY`，**无 `DO_NOT_PILFER`**）严格位于 `com.miui.home` 的 `GestureStubLeft` / `GestureStubRight` 之上。
+- **已落地实现**（`SystemServerGestureHooks.kt`）：
+  - Hook `WindowManagerService.systemReady()` 获取 `mContext` / `mH` / `mGlobalLock` / `mPolicy`。
+  - 通过 `com.miui.server.input.gesture.MiuiGestureMonitor.getInstance(context)` 注册动态代理 `MiuiGestureListener.onPointerEvent(MotionEvent)`（异常时自动兜底 `InputManagerGlobal.monitorGestureInput`）。
+  - 在 `ArmPause` 阶段提前在 `workerExecutor` 后台预取最近任务列表，确保 `miui-gesture` 实时线程零阻塞。
 
-然后重点核对以下 4 个问题，再将精确的方法签名填入 `SystemServerGestureHooks.kt` 与 `SystemUiOverlayHooks.kt` 的 `TODO(HyperOS-4.0.6.0)` 位置：
+### 检查点 B：HyperOS 4.0.6.0 侧滑返回提交链路（已实机验证）
+- 实机 `dumpsys_systemui.txt` 确认 SystemUI `EdgeBackGestureHandler` 已关闭（`mIsEnabled=false`）。
+- 活动态 `com.miui.home` 为纯原生 Rust/Flutter 架构（`libapp_launcher.so`，无 Java DEX），其 `GestureInputBackHelper` 全部经由 `system_server` 触发返回，活体 `CoreBackPreview` 日志证实走 `BackNavigationController.startBackNavigation` → `IOnBackInvokedCallback` → `onBackNavigationDone`（未走 `KEYCODE_BACK` 注入）。
+- **已落地三层拦截闭环**（无需把 `com.miui.home` 加入 `scope.list`）：
+  1. **输入抢占撤回**：悬停激活时调用 `MiuiGestureMonitor.pilferPointers()`，向 `GestureStubLeft`/`Right` 派发 `ACTION_CANCEL` 收回原生箭头。
+  2. **预测返回会话代理**：Hook `BackNavigationController.startBackNavigation(RemoteCallback, BackAnimationAdapter)` 与 `onBackNavigationDone(Bundle, int)`：
+     - 锁存期间直接阻止新会话；
+     - 对激活前 7ms 已创建的会话，通过本地 `BackCallbackSuppressionBinder` 代理 `BackNavigationInfo.mOnBackInvokedCallback`，将 `TRANSACTION_onBackInvoked` 拦截并改发 `TRANSACTION_onBackCancelled`，同时在 `WMS.mH` 下通过 `NavigationMonitor.cancelBackNavigating` 清理会话并将 `NavigationFinished` 置为 `false`。
+  3. **按键注入兜底**：Hook `InputManagerService.injectInputEventToTarget(InputEvent, int, int, boolean, String[])`，锁存期间吸收 `KeyEvent.KEYCODE_BACK`。
 
-### 检查点 A：是谁持有侧滑返回输入通道？（看 `dumpsys_input.txt`）
-- 在 `InputDispatcher` 的 `Windows` 与 `Global monitors` 段落中，按 Z-order 从高到低列出所有 `GestureMonitor` / `InputChannel`（例如 `edge-swipe`、`miui_gesture`、`hyos`、`PointerEventDispatcher`、`TouchInputRecever`）。
-- 确认两点：
-  1. 哪个常驻且安全的通道能收到完整触摸流（优先单一通道，不再同时 Hook `filterInputEvent`）。
-  2. 调用 `InputManager.pilferPointers(token)` 时，**哪个通道的 token 优先级高于系统原生返回手势窗口/监听器**，才能在 `onPauseElapsed()` 时真正把正在进行的侧滑返回流“抢走并向原生返回发送 `ACTION_CANCEL`”。
+### 检查点 C：锁屏 / 控制中心 / 通知栏 / 输入法防误触（已实机验证）
+- `SystemUiOverlayHooks` Hook `com.android.systemui.shade.NotificationShadeWindowControllerImpl.apply(NotificationShadeWindowState)`，合并 `controlCenterExpanded || qsExpanded || shadeOrQsExpanded || bouncerShowing || (keyguardShowing && !keyguardOccluded) || dozing || dreaming`，仅在状态跳变时经由 `SystemServerControlClient`（`FLAG_ONEWAY`）同步给 `system_server`（同时保留 `KeyguardManager.isKeyguardLocked` 与 `StatusBarManagerService.onPanelRevealed/Hidden` 兜底）。
+- 通过 `WindowManagerService.mPolicy`（`BaseMiuiPhoneWindowManager`）实机字段 `mInputMethodWindowVisibleHeight` 动态裁剪底部触发区，输入法弹出时自动屏蔽键盘区域误触。
 
-### 检查点 B：HyperOS 4.0.6.0 侧滑返回究竟通过哪条链路提交？（看 `back_gesture_logcat.txt` + 系统包）
-重点核对以下 4 条候选路径在小米 17 HyperOS 4.0.6.0 上实际触发了哪一条（或多条）：
-1. **`system_server` 预测性返回主控**：`com.android.server.wm.BackNavigationController`（`startBackNavigation` / `onBackNavigationDone` / 主动取消正在进行的导航会话）。
-2. **`com.android.systemui` WM Shell**：`com.android.wm.shell.back.BackAnimationController` / `EdgeBackGestureHandler`（`onBackMotion` / `finishBackNavigation` / 取消返回动画并下发 `onBackCancelled()` 而非直接静默吞掉 `onBackInvoked()`）。
-3. **`system_server` 输入注入**：`com.android.server.input.InputManagerService`（`injectInputEvent*` / 小米私有 `MiuiInputManager`）下发的 `KeyEvent.KEYCODE_BACK`。
-4. **`com.miui.home` / `hyos_spawner` 原生桌面手势**：若 `com.miui.home` APK（如 `RELEASE-8.01.02.9259`）或 `libapp_launcher.so` 仍通过 Java/JNI 桥调用返回提交或 `IOnBackInvokedCallback`，则仅在实机证实后把 `com.miui.home` 补入 `scope.list` 并加最小化精准 Hook。
-
-### 检查点 C：下拉控制中心 / 通知栏 / 输入法防误触状态读取
-- `system_server` 内通过 `KeyguardManager.isKeyguardLocked` 已拦截锁屏。
-- 核对 `WindowManagerService` / `DisplayPolicy` 中判断控制中心/通知栏展开状态及 IME 可见高度的字段（或由 `SystemUI` 侧将 shade 展开状态通过极简信号同步），补齐 `isSystemUiBlockingGesture()`。
-
-### 检查点 D：SystemUI 悬浮窗层级与原生毛玻璃
-- 验证 `OppositeEdgeCapsuleView` 在 `com.android.systemui` 内使用的 `WindowManager.LayoutParams.type`（如 `TYPE_APPLICATION_OVERLAY` 或 SystemUI 特权层级 `TYPE_NAVIGATION_BAR_PANEL` / `TYPE_STATUS_BAR_SUB_PANEL`）在全屏应用与输入法上方均能正常显示且不抢焦点。
-- 对齐 `MiuiSystemUI.apk` 中的 `MiBlurCompat` / `setMiBackgroundBlurMode` / `setMiBackgroundBlendColors` 精确签名，使胶囊毛玻璃与 HyperOS 4 原厂质感完全统一。
+### 检查点 D：SystemUI 悬浮窗层级与原生毛玻璃（已实机验证）
+- 实机 `dumpsys window windows` 显示 `TYPE_APPLICATION_OVERLAY (2038)` 基准层级为 `111000`，低于 `InputMethod (2011, 131000)`。`SystemUiOverlayHooks` 已升级为 SystemUI 特权层级 `TYPE_STATUS_BAR_SUB_PANEL (2017, 181000)`（失败时降级 `2038`），避免输入法遮挡及非系统 `2038` 透明度限制。
+- `OppositeEdgeCapsuleView` 接入 `MiuiSystemUI.apk` 原厂材质链路（`MaterialToken$Builder` + `MaterialDayNightConfig` + `MiuiBlurUtils.setPassWindowBlurEnabled` / `setBackgroundOnlyBlur` / `setViewBlurMode(1)` / `setBackgroundBlendConfig` + `onViewAttachedToWindow` 内调用 `setMiBlurWinType`），默认提供 **柔光玻璃**（`ColorBlendToken.Pured_Thick_Glass_*` + `BloomStrokeToken.Glass_Stroke_Small_*` 柔光亮边 + `ShadowToken.Regular`）与 **高级磨砂**（`ColorBlendToken.Heavy_*` + `ShadowToken.Regular`）两档切换，并支持外观主题（跟随系统 / 始终浅色 / 始终深色）及极简纯图标高亮环样式。
 
 ---
 

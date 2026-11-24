@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -51,6 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.healer.hyperos.swipegesture.BuildConfig
 import com.healer.hyperos.swipegesture.hook.SwipeGestureModuleEntry
+import com.healer.hyperos.swipegesture.policy.OverlayMaterial
+import com.healer.hyperos.swipegesture.policy.OverlayThemeMode
 import com.healer.hyperos.swipegesture.policy.SwipeGestureSettings
 import com.healer.hyperos.swipegesture.policy.SwitchMode
 import kotlin.math.roundToInt
@@ -76,7 +80,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 private const val PROJECT_HOMEPAGE_URL = "https://github.com/Healer-01/HyperOS-swipe-gesture"
 private const val MIUIX_PROJECT_URL = "https://github.com/compose-miuix-ui/miuix"
 private const val DIAG_LOGCAT_COMMAND =
-    "adb logcat -v time -s ${SwipeGestureModuleEntry.TAG}:V BackNavigationController:V InputDispatcher:V"
+    "adb logcat -v time -s ${SwipeGestureModuleEntry.TAG}:V CoreBackPreview:V InputDispatcher:V"
 
 private data class InstalledAppEntry(
     val packageName: String,
@@ -402,6 +406,7 @@ private fun GestureTriggerCard(settings: SwipeGestureSettings) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OverlayAppearanceCard(settings: SwipeGestureSettings) {
     val enabled = settings.enabled
@@ -415,6 +420,91 @@ private fun OverlayAppearanceCard(settings: SwipeGestureSettings) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             OppositeEdgePreviewCanvas(settings = settings)
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "背景材质",
+                style = MiuixTheme.textStyles.headline1,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ModeChip(
+                    label = "柔光玻璃",
+                    selected = settings.overlayMaterial == OverlayMaterial.SOFT_LIGHT_GLASS,
+                    enabled = enabled,
+                    onClick = {
+                        SettingsRepository.update {
+                            it.copy(overlayMaterial = OverlayMaterial.SOFT_LIGHT_GLASS)
+                        }
+                    },
+                )
+                ModeChip(
+                    label = "高级磨砂",
+                    selected = settings.overlayMaterial == OverlayMaterial.FROSTED_BLUR,
+                    enabled = enabled,
+                    onClick = {
+                        SettingsRepository.update {
+                            it.copy(overlayMaterial = OverlayMaterial.FROSTED_BLUR)
+                        }
+                    },
+                )
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = "外观深浅色",
+                style = MiuixTheme.textStyles.headline1,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ModeChip(
+                    label = "跟随系统",
+                    selected = settings.overlayThemeMode == OverlayThemeMode.FOLLOW_SYSTEM,
+                    enabled = enabled,
+                    onClick = {
+                        SettingsRepository.update {
+                            it.copy(overlayThemeMode = OverlayThemeMode.FOLLOW_SYSTEM)
+                        }
+                    },
+                )
+                ModeChip(
+                    label = "始终浅色",
+                    selected = settings.overlayThemeMode == OverlayThemeMode.LIGHT,
+                    enabled = enabled,
+                    onClick = {
+                        SettingsRepository.update {
+                            it.copy(overlayThemeMode = OverlayThemeMode.LIGHT)
+                        }
+                    },
+                )
+                ModeChip(
+                    label = "始终深色",
+                    selected = settings.overlayThemeMode == OverlayThemeMode.DARK,
+                    enabled = enabled,
+                    onClick = {
+                        SettingsRepository.update {
+                            it.copy(overlayThemeMode = OverlayThemeMode.DARK)
+                        }
+                    },
+                )
+            }
         }
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -460,6 +550,14 @@ private fun OverlayAppearanceCard(settings: SwipeGestureSettings) {
 
 @Composable
 private fun OppositeEdgePreviewCanvas(settings: SwipeGestureSettings) {
+    val systemDark = isSystemInDarkTheme()
+    val previewDark = when (settings.overlayThemeMode) {
+        OverlayThemeMode.LIGHT -> false
+        OverlayThemeMode.DARK -> true
+        OverlayThemeMode.FOLLOW_SYSTEM -> systemDark
+    }
+    val isSoftGlass = settings.overlayMaterial == OverlayMaterial.SOFT_LIGHT_GLASS
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -474,11 +572,19 @@ private fun OppositeEdgePreviewCanvas(settings: SwipeGestureSettings) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawRect(
                 brush = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF1E293B),
-                        Color(0xFF334155),
-                        Color(0xFF1D4ED8),
-                    ),
+                    colors = if (previewDark) {
+                        listOf(
+                            Color(0xFF06080D),
+                            Color(0xFF111827),
+                            Color(0xFF1E293B),
+                        )
+                    } else {
+                        listOf(
+                            Color(0xFFF8FAFC),
+                            Color(0xFFF1F5F9),
+                            Color(0xFFE2E8F0),
+                        )
+                    },
                 ),
             )
 
@@ -490,7 +596,7 @@ private fun OppositeEdgePreviewCanvas(settings: SwipeGestureSettings) {
 
             if (settings.leftEdgeEnabled) {
                 drawRoundRect(
-                    color = Color(0xFF60A5FA).copy(alpha = 0.85f),
+                    color = Color(0xFF3B82F6).copy(alpha = 0.85f),
                     topLeft = Offset(4.dp.toPx(), topY),
                     size = Size(bandWidth, bandHeight),
                     cornerRadius = CornerRadius(bandWidth, bandWidth),
@@ -498,32 +604,97 @@ private fun OppositeEdgePreviewCanvas(settings: SwipeGestureSettings) {
             }
             if (settings.rightEdgeEnabled) {
                 drawRoundRect(
-                    color = Color(0xFF60A5FA).copy(alpha = 0.85f),
+                    color = Color(0xFF3B82F6).copy(alpha = 0.85f),
                     topLeft = Offset(size.width - bandWidth - 4.dp.toPx(), topY),
                     size = Size(bandWidth, bandHeight),
                     cornerRadius = CornerRadius(bandWidth, bandWidth),
                 )
             }
 
-            // Simulated opposite-edge frosted-glass capsule preview on right side.
+            // Simulated opposite-edge HyperOS 4 glass / frosted capsule preview on right side.
             val shownCount = if (settings.switchMode == SwitchMode.MULTI_APP_MENU) {
                 settings.menuMaxCount.coerceAtMost(5)
             } else {
                 1
             }
-            val slotSize = (20.dp.toPx() * settings.menuScale).coerceIn(14.dp.toPx(), 24.dp.toPx())
-            val gap = 4.dp.toPx()
-            val pad = 6.dp.toPx()
+            val previewScale = settings.menuScale.coerceIn(
+                SwipeGestureSettings.MIN_MENU_SCALE,
+                SwipeGestureSettings.MAX_MENU_SCALE,
+            )
+            val slotSize = 16.dp.toPx() * previewScale
+            val gap = 3.dp.toPx() * previewScale
+            val pad = 5.dp.toPx() * previewScale
             val capsuleW = slotSize + pad * 2
             val capsuleH = pad * 2 + shownCount * slotSize + (shownCount - 1) * gap
+            val capsuleRadius = capsuleW * 0.368f
             val capsuleX = size.width - capsuleW - 18.dp.toPx()
             val capsuleY = (size.height - capsuleH) / 2f
 
+            // Simulated floating drop shadow halo.
+            val shadowColor = if (previewDark) Color.Black else Color(0xFF0F172A)
             drawRoundRect(
-                color = Color(0xDD111827),
+                color = shadowColor.copy(alpha = if (previewDark) 0.42f else 0.14f),
+                topLeft = Offset(capsuleX - 2.dp.toPx(), capsuleY + 3.dp.toPx()),
+                size = Size(capsuleW + 4.dp.toPx(), capsuleH + 4.dp.toPx()),
+                cornerRadius = CornerRadius(capsuleRadius + 2.dp.toPx(), capsuleRadius + 2.dp.toPx()),
+            )
+            drawRoundRect(
+                color = shadowColor.copy(alpha = if (previewDark) 0.24f else 0.08f),
+                topLeft = Offset(capsuleX - 5.dp.toPx(), capsuleY + 4.dp.toPx()),
+                size = Size(capsuleW + 10.dp.toPx(), capsuleH + 8.dp.toPx()),
+                cornerRadius = CornerRadius(capsuleRadius + 5.dp.toPx(), capsuleRadius + 5.dp.toPx()),
+            )
+
+            // Frosted pearl-silver (Light) / luminous titanium-slate (Dark) glass body.
+            val capsuleFillBrush = Brush.verticalGradient(
+                colors = when {
+                    previewDark && isSoftGlass -> listOf(Color(0xD2525E74), Color(0xC43B4457), Color(0xCE475267))
+                    previewDark -> listOf(Color(0xE04C566A), Color(0xDC3C4454))
+                    isSoftGlass -> listOf(Color(0xD8DCE4F3), Color(0xCCD2DCF0), Color(0xD6DAE3F2))
+                    else -> listOf(Color(0xE6CFD9EA), Color(0xE2C7D2E6))
+                },
+                startY = capsuleY,
+                endY = capsuleY + capsuleH,
+            )
+            drawRoundRect(
+                brush = capsuleFillBrush,
                 topLeft = Offset(capsuleX, capsuleY),
                 size = Size(capsuleW, capsuleH),
-                cornerRadius = CornerRadius(capsuleW / 2f, capsuleW / 2f),
+                cornerRadius = CornerRadius(capsuleRadius, capsuleRadius),
+            )
+
+            // Inner bright specular rim + outer crisp framing hairline.
+            val innerInset = 1.2.dp.toPx()
+            val innerRadius = (capsuleRadius - innerInset).coerceAtLeast(0f)
+            drawRoundRect(
+                brush = Brush.verticalGradient(
+                    colors = if (previewDark) {
+                        if (isSoftGlass) {
+                            listOf(Color.White.copy(alpha = 0.72f), Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.50f))
+                        } else {
+                            listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.24f))
+                        }
+                    } else {
+                        if (isSoftGlass) {
+                            listOf(Color.White.copy(alpha = 0.94f), Color.White.copy(alpha = 0.52f), Color.White.copy(alpha = 0.78f))
+                        } else {
+                            listOf(Color.White.copy(alpha = 0.65f), Color.White.copy(alpha = 0.28f))
+                        }
+                    },
+                    startY = capsuleY,
+                    endY = capsuleY + capsuleH,
+                ),
+                topLeft = Offset(capsuleX + innerInset, capsuleY + innerInset),
+                size = Size(capsuleW - innerInset * 2, capsuleH - innerInset * 2),
+                cornerRadius = CornerRadius(innerRadius, innerRadius),
+                style = Stroke(width = 1.1.dp.toPx()),
+            )
+            drawRoundRect(
+                color = if (previewDark) Color.Black.copy(alpha = 0.60f) else Color(0xFF0F172A).copy(alpha = 0.28f),
+                topLeft = Offset(capsuleX, capsuleY),
+                size = Size(capsuleW, capsuleH),
+                cornerRadius = CornerRadius(capsuleRadius, capsuleRadius),
+                style = Stroke(width = 1.dp.toPx()),
             )
 
             val slotColors = listOf(
@@ -536,33 +707,36 @@ private fun OppositeEdgePreviewCanvas(settings: SwipeGestureSettings) {
             for (i in 0 until shownCount) {
                 val cx = capsuleX + capsuleW / 2f
                 val cy = capsuleY + pad + slotSize / 2f + i * (slotSize + gap)
-                val radius = if (i == 0) slotSize * 0.44f else slotSize * 0.34f
+                if (i == 0) {
+                    drawCircle(
+                        color = if (previewDark) Color(0xFF4DA3FF) else Color(0xFF1872FF),
+                        radius = slotSize * 0.50f,
+                        center = Offset(cx, cy),
+                        style = Stroke(width = 1.5.dp.toPx()),
+                    )
+                }
                 drawCircle(
-                    color = slotColors[i % slotColors.size].copy(alpha = if (i == 0) 1f else 0.65f),
-                    radius = radius,
+                    color = slotColors[i % slotColors.size],
+                    radius = slotSize * 0.36f,
                     center = Offset(cx, cy),
                 )
             }
-
-            // Companion label pill next to active top slot
-            val pillW = 68.dp.toPx()
-            val pillH = 22.dp.toPx()
-            drawRoundRect(
-                color = Color(0xDD111827),
-                topLeft = Offset(capsuleX - pillW - 8.dp.toPx(), capsuleY + pad),
-                size = Size(pillW, pillH),
-                cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
-            )
         }
 
+        val materialLabel = if (isSoftGlass) "柔光玻璃" else "高级磨砂"
+        val themeLabel = when (settings.overlayThemeMode) {
+            OverlayThemeMode.FOLLOW_SYSTEM -> "跟随系统"
+            OverlayThemeMode.LIGHT -> "浅色"
+            OverlayThemeMode.DARK -> "深色"
+        }
         Text(
             text = if (settings.switchMode == SwitchMode.MULTI_APP_MENU) {
-                "实时预览 · 对侧毛玻璃胶囊（顶部为上一个应用）"
+                "实时预览 · $materialLabel（$themeLabel）"
             } else {
-                "实时预览 · 单应用快切模式"
+                "实时预览 · 单切模式 · $materialLabel（$themeLabel）"
             },
             style = MiuixTheme.textStyles.footnote1,
-            color = Color.White.copy(alpha = 0.85f),
+            color = if (previewDark) Color.White.copy(alpha = 0.88f) else Color(0xFF1E293B).copy(alpha = 0.88f),
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(horizontal = 12.dp, vertical = 8.dp),

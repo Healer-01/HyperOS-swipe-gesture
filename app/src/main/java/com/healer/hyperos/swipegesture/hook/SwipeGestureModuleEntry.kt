@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - `system` (system_server): ultra-thin input listener, pure state machine, back suppression,
  *   recent task lookup & moveTaskToFront. Zero UI views, zero blocking IPC.
  * - `com.android.systemui`: persistent overlay renderer (opposite-edge frosted-glass capsule)
- *   driven over oneway Binder, plus WM Shell predictive-back cancellation hook.
+ *   driven over oneway Binder, plus shade/control-center state bridge.
  */
 class SwipeGestureModuleEntry : XposedModule() {
 
@@ -41,28 +41,16 @@ class SwipeGestureModuleEntry : XposedModule() {
         }
     }
 
-    override fun onPackageLoaded(param: XposedModuleInterface.PackageLoadedParam) {
-        val packageName = param.packageName
-        if (packageName == BuildConfig.APPLICATION_ID) return
-        if (packageName != PKG_SYSTEM_UI) return
-
-        RuntimeSettingsHolder.init(this)
-        installSystemUi(param.defaultClassLoader, phase = "PackageLoaded")
-    }
-
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
+        if (Build.VERSION.SDK_INT < MIN_HYPEROS4_SDK) return
         val packageName = param.packageName
         if (packageName == BuildConfig.APPLICATION_ID) return
         if (packageName != PKG_SYSTEM_UI) return
 
         RuntimeSettingsHolder.init(this)
-        installSystemUi(param.classLoader, phase = "PackageReady")
-    }
-
-    private fun installSystemUi(loader: ClassLoader, phase: String) {
         if (systemUiInstalled.compareAndSet(false, true)) {
-            log(Log.INFO, TAG, "Initializing SystemUI overlay host hooks (phase=$phase)")
-            SystemUiOverlayHooks.install(this, loader)
+            log(Log.INFO, TAG, "Initializing SystemUI overlay host hooks (PackageReady)")
+            SystemUiOverlayHooks.install(this, param.classLoader)
         }
     }
 

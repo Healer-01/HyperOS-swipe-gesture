@@ -54,6 +54,7 @@ class SwipeGestureStateMachine {
         ) : Action
     }
 
+    @Volatile
     var phase: Phase = Phase.IDLE
         private set
 
@@ -68,6 +69,7 @@ class SwipeGestureStateMachine {
         get() = phase == Phase.ACTIVE || phase == Phase.CANCELLED_AFTER_ACTIVE
 
     private var downX: Float = 0f
+    private var downY: Float = 0f
     private var lastY: Float = 0f
     private var selectionAnchorY: Float = 0f
     private var screenWidth: Int = 0
@@ -81,14 +83,23 @@ class SwipeGestureStateMachine {
         screenHeight: Int,
         edgeInsetPx: Int,
         settings: SwipeGestureSettings,
+        imeVisibleHeightPx: Int = 0,
     ): Boolean {
         resetInternal()
         if (!settings.enabled || screenWidth <= 0 || screenHeight <= 0 || edgeInsetPx <= 0) {
             return false
         }
 
-        val yRatio = rawY / screenHeight.toFloat()
-        if (yRatio < settings.triggerTopRatio || yRatio > settings.triggerBottomRatio) {
+        val effectiveBottomPx = if (imeVisibleHeightPx > 0) {
+            minOf(
+                screenHeight * settings.triggerBottomRatio,
+                (screenHeight - imeVisibleHeightPx).toFloat(),
+            )
+        } else {
+            screenHeight * settings.triggerBottomRatio
+        }
+        val topPx = screenHeight * settings.triggerTopRatio
+        if (rawY < topPx || rawY > effectiveBottomPx || effectiveBottomPx <= topPx) {
             return false
         }
 
@@ -101,6 +112,7 @@ class SwipeGestureStateMachine {
         phase = Phase.TRACKING_EDGE
         fromLeft = inLeftEdge
         downX = rawX
+        downY = rawY
         lastY = rawY
         selectionAnchorY = rawY
         this.screenWidth = screenWidth
@@ -125,7 +137,7 @@ class SwipeGestureStateMachine {
             Phase.TRACKING_EDGE -> {
                 if (inwardDistance >= activateThreshold) {
                     phase = Phase.ARMED_WAIT_PAUSE
-                    Action.ArmPause(fromLeft = fromLeft, anchorY = rawY)
+                    Action.ArmPause(fromLeft = fromLeft, anchorY = downY)
                 } else {
                     Action.None
                 }
@@ -166,7 +178,7 @@ class SwipeGestureStateMachine {
         candidateCount = availableCandidates
         selectedIndex = 0
         selectionAnchorY = lastY
-        return Action.ActivateSwitcher(fromLeft = fromLeft, anchorY = lastY)
+        return Action.ActivateSwitcher(fromLeft = fromLeft, anchorY = downY)
     }
 
     fun onPointerDown(): Action {
@@ -228,6 +240,7 @@ class SwipeGestureStateMachine {
         fromLeft = false
         selectedIndex = 0
         downX = 0f
+        downY = 0f
         lastY = 0f
         selectionAnchorY = 0f
         screenWidth = 0

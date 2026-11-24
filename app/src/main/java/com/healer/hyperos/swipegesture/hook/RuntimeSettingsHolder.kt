@@ -29,6 +29,26 @@ internal object RuntimeSettingsHolder {
         reload(prefs)
     }
 
+    val isBound: Boolean
+        get() = bound.get()
+
+    fun ensureBound(module: XposedModule?) {
+        if (!bound.get() && module != null) {
+            init(module)
+        } else {
+            refresh()
+        }
+    }
+
+    /**
+     * Re-reads the in-memory `RemotePreferences` map directly (zero IPC / zero disk I/O) so
+     * hooked processes never rely on a missed `OnSharedPreferenceChangeListener` callback.
+     */
+    fun refresh(): SwipeGestureSettings {
+        remotePrefs?.let { reload(it) }
+        return current
+    }
+
     fun init(module: XposedModule) {
         if (!bound.compareAndSet(false, true)) {
             remotePrefs?.let { reload(it) }

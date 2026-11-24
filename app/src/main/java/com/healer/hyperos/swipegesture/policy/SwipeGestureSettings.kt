@@ -16,9 +16,42 @@ enum class SwitchMode(val wireValue: Int) {
     }
 }
 
+enum class OverlayMaterial(val wireValue: Int) {
+    /** HyperOS 4 soft-light glass (cross-window live blur + thick glass blend + luminous bloom rim). */
+    SOFT_LIGHT_GLASS(0),
+
+    /** HyperOS 4 matte frosted blur (heavy cross-window blur + frosted blend, no luminous rim). */
+    FROSTED_BLUR(1),
+    ;
+
+    companion object {
+        fun fromWireValue(value: Int): OverlayMaterial =
+            entries.firstOrNull { it.wireValue == value } ?: SOFT_LIGHT_GLASS
+    }
+}
+
+enum class OverlayThemeMode(val wireValue: Int) {
+    /** Automatically follow system light/dark mode. */
+    FOLLOW_SYSTEM(0),
+
+    /** Force light glass/frosted appearance regardless of system theme. */
+    LIGHT(1),
+
+    /** Force dark glass/frosted appearance regardless of system theme. */
+    DARK(2),
+    ;
+
+    companion object {
+        fun fromWireValue(value: Int): OverlayThemeMode =
+            entries.firstOrNull { it.wireValue == value } ?: FOLLOW_SYSTEM
+    }
+}
+
 data class SwipeGestureSettings(
     val enabled: Boolean = true,
     val switchMode: SwitchMode = SwitchMode.MULTI_APP_MENU,
+    val overlayMaterial: OverlayMaterial = OverlayMaterial.SOFT_LIGHT_GLASS,
+    val overlayThemeMode: OverlayThemeMode = OverlayThemeMode.FOLLOW_SYSTEM,
     val leftEdgeEnabled: Boolean = true,
     val rightEdgeEnabled: Boolean = true,
     /** Normalized top boundary of the active edge trigger zone (0f..1f). */
@@ -113,6 +146,8 @@ object SettingsContract {
 
     const val KEY_ENABLED = "enabled"
     const val KEY_SWITCH_MODE = "switch_mode"
+    const val KEY_OVERLAY_MATERIAL = "overlay_material"
+    const val KEY_OVERLAY_THEME_MODE = "overlay_theme_mode"
     const val KEY_LEFT_EDGE_ENABLED = "left_edge_enabled"
     const val KEY_RIGHT_EDGE_ENABLED = "right_edge_enabled"
     const val KEY_TRIGGER_TOP_RATIO = "trigger_top_ratio"
@@ -145,6 +180,12 @@ object SettingsContract {
         enabled = prefs.getBoolean(KEY_ENABLED, true),
         switchMode = SwitchMode.fromWireValue(
             prefs.getInt(KEY_SWITCH_MODE, SwitchMode.MULTI_APP_MENU.wireValue),
+        ),
+        overlayMaterial = OverlayMaterial.fromWireValue(
+            prefs.getInt(KEY_OVERLAY_MATERIAL, OverlayMaterial.SOFT_LIGHT_GLASS.wireValue),
+        ),
+        overlayThemeMode = OverlayThemeMode.fromWireValue(
+            prefs.getInt(KEY_OVERLAY_THEME_MODE, OverlayThemeMode.FOLLOW_SYSTEM.wireValue),
         ),
         leftEdgeEnabled = prefs.getBoolean(KEY_LEFT_EDGE_ENABLED, true),
         rightEdgeEnabled = prefs.getBoolean(KEY_RIGHT_EDGE_ENABLED, true),
@@ -185,6 +226,8 @@ object SettingsContract {
         prefs.edit()
             .putBoolean(KEY_ENABLED, clean.enabled)
             .putInt(KEY_SWITCH_MODE, clean.switchMode.wireValue)
+            .putInt(KEY_OVERLAY_MATERIAL, clean.overlayMaterial.wireValue)
+            .putInt(KEY_OVERLAY_THEME_MODE, clean.overlayThemeMode.wireValue)
             .putBoolean(KEY_LEFT_EDGE_ENABLED, clean.leftEdgeEnabled)
             .putBoolean(KEY_RIGHT_EDGE_ENABLED, clean.rightEdgeEnabled)
             .putFloat(KEY_TRIGGER_TOP_RATIO, clean.triggerTopRatio)

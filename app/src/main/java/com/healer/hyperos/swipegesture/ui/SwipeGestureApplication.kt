@@ -116,7 +116,9 @@ object SettingsRepository {
 
     @Synchronized
     fun update(transform: (SwipeGestureSettings) -> SwipeGestureSettings) {
-        val next = transform(_settings.value).sanitized()
+        val current = _settings.value
+        val next = transform(current).sanitized()
+        if (next == current) return
         _settings.value = next
         localPrefs?.let { SettingsContract.write(it, next) }
         remotePrefs?.let { SettingsContract.write(it, next) }
@@ -124,10 +126,16 @@ object SettingsRepository {
 
     fun requestMissingScope() {
         val service = currentService ?: return
-        val targets = listOf(
-            SwipeGestureModuleEntry.PKG_SYSTEM_FRAMEWORK,
-            SwipeGestureModuleEntry.PKG_SYSTEM_UI,
-        )
+        val snapshot = _framework.value
+        val targets = buildList {
+            if (!snapshot.systemFrameworkInScope) add(SwipeGestureModuleEntry.PKG_SYSTEM_FRAMEWORK)
+            if (!snapshot.systemUiInScope) add(SwipeGestureModuleEntry.PKG_SYSTEM_UI)
+        }.ifEmpty {
+            listOf(
+                SwipeGestureModuleEntry.PKG_SYSTEM_FRAMEWORK,
+                SwipeGestureModuleEntry.PKG_SYSTEM_UI,
+            )
+        }
         runCatching {
             service.requestScope(
                 targets,
